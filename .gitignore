@@ -1,0 +1,15 @@
+# Local / Antigravity / Google Drive sync metadata (keep private)
+AGENTS.md
+.agents/
+.gdrive-sync.json
+sessions/
+
+# Generated / OS / Editor
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.log
+.DS_Store
+Thumbs.db

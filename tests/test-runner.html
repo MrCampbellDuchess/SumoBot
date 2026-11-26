@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SumoBot Test Suite</title>
+</head>
+<body>
+  <pre id="results">RUNNING...</pre>
+  <div id="render-mount" style="display:none"></div>
+  <script src="../js/bracket-engine.js"></script>
+  <script src="../js/sound.js"></script>
+  <script src="../js/sync.js"></script>
+  <script src="../js/bracket-renderer.js"></script>
+  <script>
+    (function () {
+      const out = [];
+      let passed = 0;
+      let failed = 0;
+
+      function assert(cond, msg) {
+        if (!cond) {
+          failed++;
+          out.push('FAIL: ' + msg);
+          throw new Error(msg);
+        }
+        passed++;
+      }
+
+      const Engine = window.SumoBot.Engine;
+      const Sync = window.SumoBot.Sync;
+      const Renderer = window.SumoBot.Renderer;
+      const Sound = window.SumoBot.Sound;
+
+      function makeBots(period, count) {
+        return Array.from({ length: count }, (_, i) => ({
+          id: period.toLowerCase() + '-b' + (i + 1),
+          name: period + ' Bot ' + (i + 1),
+          seed: i + 1
+        }));
+      }
+
+      function playMatchToWin(state, period, matchId, winnerSide) {
+        const m = Engine.getMatch(state, period, matchId);
+        const needed = Engine.winsNeeded(m.bestOf);
+        let res;
+        for (let i = 0; i < needed; i++) {
+          res = Engine.recordBoutWin(state, period, matchId, winnerSide);
+        }
+        return res;
+      }
+
+      try {
+        // 1. Simulate every bracket size 2..20 with & without Grand Finals Bracket Reset
+        [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 16, 17, 20].forEach(function (size) {
+          [false, true].forEach(function (forceReset) {
+            const state = Engine.createInitialState();
+            state.periods.P2.bots = makeBots('P2', size);
+            state.periods.P2.bracket = Engine.createPeriodBracket('P2', state.periods.P2.bots);
+
+            let steps = 0;
+            while (!state.periods.P2.bracket.championId) {
+              const ready = Engine.getReadyMatches(state, 'P2');
+              assert(ready.length > 0, 'Size ' + size + ' reset=' + forceReset + ' deadlocked');
+              const m = ready[0];
+              if (m.id === 'GF-1' || m.id === 'GF-2') {
+                assert(m.bestOf === 5, m.id + ' must be Bo5');
+              } else {
+                assert(m.bestOf === 3, m.id + ' must be Bo3');
+              }
+              let side = 'a';
+              if (m.id === 'GF-1' && forceReset) side = 'b';
+              if (m.id === 'GF-2') side = 'b';
+              playMatchToWin(state, 'P2', m.id, side);
+              steps++;
+              assert(steps < 200, 'Infinite loop guard');
+            }
+
+            const b = state.periods.P2.bracket;
+            const expected = forceReset ? (2 * size - 1) : (2 * size - 2);
+            assert(steps === expected, 'Size ' + size + ' reset=' + forceReset + ' expected ' + expected + ' got ' + steps);
+            assert(b.resetTriggered === forceReset, 'Size ' + size + ' resetTriggered mismatch');
+            assert(b.championId && b.runnerUpId && b.championId !== b.runnerUpId, 'Distinct champ & runnerUp');
+          });
+        });
+
+        // 2. Test P2 + P3 -> All-School Final (Bo5) + Rendering
+        const s2 = Engine.createInitialState();
+        s2.periods.P2.bots = makeBots('P2', 10);
+        s2.periods.P3.bots = makeBots('P3', 13);
+        s2.periods.P2.bracket = Engine.createPeriodBracket('P2', s2.periods.P2.bots);
+        s2.periods.P3.bracket = Engine.createPeriodBracket('P3', s2.periods.P3.bots);
+
+        const htmlP2 = Renderer.renderPeriodBracket(s2, 'P2', { interactive: true });
+        assert(htmlP2.includes('WINNERS BRACKET') && htmlP2.includes('LOSERS BRACKET'), 'Renders W & L brackets');
+
+        ['P2', 'P3'].forEach(function (period) {
+          while (!s2.periods[period].bracket.championId) {
+            const m = Engine.getReadyMatches(s2, period)[0];
+            playMatchToWin(s2, period, m.id, 'a');
+          }
+        });
+        assert(s2.allSchoolFinal.status === 'ready', 'ASF ready after P2 & P3 finish');
+        assert(s2.allSchoolFinal.bestOf === 5, 'ASF is Bo5');
+        Engine.recordBoutWin(s2, 'ASF', 'ASF-1', 'a');
+        Engine.recordBoutWin(s2, 'ASF', 'ASF-1', 'b');
+        Engine.recordBoutWin(s2, 'ASF', 'ASF-1', 'a');
+        Engine.recordBoutWin(s2, 'ASF', 'ASF-1', 'b');
+        const fin = Engine.recordBoutWin(s2, 'ASF', 'ASF-1', 'b');
+        assert(fin.tournamentJustFinished === true, 'ASF finishes on 3rd win');
+        assert(s2.allSchoolFinal.winner === s2.periods.P3.bracket.championId, 'P3 champ won ASF');
+
+        const htmlAsf = Renderer.renderAllSchoolFinal(s2, { interactive: true });
+        assert(htmlAsf.includes('ALL-SCHOOL CHAMPION'), 'ASF renders champion banner');
+
+        // 3. Test Undo + Downstream Edit Detection & Clear
+        const s3 = Engine.createInitialState();
+        s3.periods.P2.bots = makeBots('P2', 4);
+        s3.periods.P2.bracket = Engine.createPeriodBracket('P2', s3.periods.P2.bots);
+        playMatchToWin(s3, 'P2', 'W1-1', 'a');
+        playMatchToWin(s3, 'P2', 'W1-2', 'a');
+        const u1 = Engine.undoLastBout(s3, 'P2', 'W1-2');
+        assert(u1.ok === true, 'Safe undo succeeds');
+        assert(s3.periods.P2.bracket.matches['W2-1'].slotB === null, 'Safe undo clears downstream W2-1 slotB');
+        Engine.recordBoutWin(s3, 'P2', 'W1-2', 'a');
+        Engine.recordBoutWin(s3, 'P2', 'W2-1', 'a');
+        const aff = Engine.getDownstreamAffectedMatches(s3, 'P2', 'W1-2');
+        assert(aff.length === 1 && aff[0].matchId === 'W2-1', 'Detects downstream played match');
+        const u2 = Engine.undoLastBout(s3, 'P2', 'W1-2');
+        assert(u2.ok === false, 'Blocks naive undo when downstream started');
+        Engine.clearDownstreamFromMatch(s3, 'P2', 'W1-2', true);
+        assert(s3.periods.P2.bracket.matches['W1-2'].status === 'ready', 'Re-opened W1-2');
+        assert(s3.periods.P2.bracket.matches['W2-1'].status === 'pending', 'Cleared downstream W2-1');
+
+        // 4. Test Sync Timer Formatting & Sound API
+        assert(Sync.formatTimer(120000) === '2:00', 'Timer formats 2:00');
+        assert(Sync.formatTimer(9001) === '0:10', 'Timer rounds up ms');
+        assert(Sync.formatTimer(0) === '0:00', 'Timer formats 0:00');
+        assert(typeof Sound.playBuzzer === 'function', 'Sound.playBuzzer exists');
+
+        out.unshift('SUMMARY: PASSED (' + passed + ' assertions, 0 failures)');
+      } catch (err) {
+        out.unshift('SUMMARY: FAILED (' + err.message + ')');
+      }
+
+      document.getElementById('results').textContent = out.join('\n');
+    }());
+  </script>
+</body>
+</html>

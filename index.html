@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SumoBot Tournament — Teacher Control Panel</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+  <link rel="stylesheet" href="css/styles.css?v=1.1">
+</head>
+<body class="teacher-app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-badge">🤖</div>
+      <div>SUMOBOT ARENA</div>
+    </div>
+
+    <nav class="period-tabs" aria-label="Tournament Tabs">
+      <button class="tab-btn active" data-tab="P2" id="tab-P2">
+        Period 2 (P2) <span class="tab-pill" id="pill-P2">0 bots</span>
+      </button>
+      <button class="tab-btn" data-tab="P3" id="tab-P3">
+        Period 3 (P3) <span class="tab-pill" id="pill-P3">0 bots</span>
+      </button>
+      <button class="tab-btn tab-asf" data-tab="ASF" id="tab-ASF">
+        🏆 All-School Final <span class="tab-pill" id="pill-ASF">Bo5</span>
+      </button>
+    </nav>
+
+    <div class="topbar-controls">
+      <div class="projector-group">
+        <button class="btn btn-primary btn-sm" id="btn-launch-projector" title="Open synced read-only Projector window">
+          <span class="proj-dot" id="proj-status-dot"></span>
+          📺 Projector
+        </button>
+        <button class="override-btn active" data-override="auto" title="Auto-switch between Bracket, Live Match, and Champion">Auto</button>
+        <button class="override-btn" data-override="bracket" title="Force Bracket View on Projector">Bracket</button>
+        <button class="override-btn" data-override="live" title="Force Live Match View on Projector">Live</button>
+        <button class="override-btn" data-override="finals" title="Force All-School Final View on Projector">Finals</button>
+      </div>
+
+      <button class="btn btn-sm" id="btn-global-undo" title="Undo last tournament action" disabled>↩ Undo</button>
+      <div class="palette-picker" role="group" aria-label="Material You Color Palette" title="Material You Dynamic Palette">
+        <button class="palette-dot active" data-palette="indigo" style="--swatch:#7ca8ff" aria-label="Indigo palette" title="Indigo"></button>
+        <button class="palette-dot" data-palette="teal" style="--swatch:#56d6c3" aria-label="Teal palette" title="Teal"></button>
+        <button class="palette-dot" data-palette="terracotta" style="--swatch:#ff9e80" aria-label="Terracotta palette" title="Terracotta"></button>
+        <button class="palette-dot" data-palette="violet" style="--swatch:#c8a8ff" aria-label="Violet palette" title="Violet"></button>
+        <button class="palette-dot" data-palette="sage" style="--swatch:#9fd47a" aria-label="Sage palette" title="Sage"></button>
+      </div>
+      <button class="btn btn-sm btn-icon" id="btn-theme" title="Toggle Dark/Light theme">☀️</button>
+      <button class="btn btn-sm btn-icon" id="btn-mute" title="Toggle Sound Effects">🔊</button>
+      <button class="btn btn-sm" id="btn-export" title="Export tournament backup JSON">💾 Export</button>
+      <button class="btn btn-sm" id="btn-import" title="Import tournament backup JSON">📂 Import</button>
+      <input type="file" id="input-import-file" accept=".json,application/json" style="display:none">
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-stage" id="main-stage"></main>
+  </div>
+
+  <!-- Modal for editing completed matches or renaming bots -->
+  <div class="modal-backdrop hidden" id="modal-backdrop">
+    <div class="modal-card" id="modal-card"></div>
+  </div>
+
+  <script src="js/bracket-engine.js?v=1.1"></script>
+  <script src="js/sound.js?v=1.1"></script>
+  <script src="js/sync.js?v=1.1"></script>
+  <script src="js/bracket-renderer.js?v=1.1"></script>
+  <script src="js/teacher.js?v=1.1"></script>
+</body>
+</html>
