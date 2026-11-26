@@ -253,10 +253,13 @@
     `;
   }
 
-  function renderPips(score, needed) {
+  function renderPips(score, needed, igniteLast) {
     let html = '';
     for (let i = 0; i < needed; i++) {
-      html += `<span class="pip ${i < score ? 'filled' : ''}"></span>`;
+      const cls = ['pip'];
+      if (i < score) cls.push('filled');
+      if (igniteLast && i === score - 1) cls.push('pip-ignite');
+      html += `<span class="${cls.join(' ')}"></span>`;
     }
     return html;
   }

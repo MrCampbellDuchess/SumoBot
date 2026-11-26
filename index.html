@@ -5,12 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SumoBot Tournament — Teacher Control Panel</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
-  <link rel="stylesheet" href="css/styles.css?v=1.2">
+  <link rel="stylesheet" href="css/styles.css?v=2.0">
 </head>
 <body class="teacher-app">
+  <div class="space-bg" aria-hidden="true">
+    <div class="gear-bg gear-a"></div>
+    <div class="gear-bg gear-b"></div>
+  </div>
+
   <header class="topbar">
     <div class="brand">
-      <div class="brand-badge">🤖</div>
+      <div class="brand-badge">
+        <span class="brand-gear" aria-hidden="true"></span>
+        <span class="brand-icon" aria-hidden="true">🤖</span>
+      </div>
       <div>SUMOBOT ARENA</div>
     </div>
 
@@ -42,15 +50,16 @@
         <span aria-hidden="true">👆</span> Touch Mode
       </button>
       <button class="btn btn-sm" id="btn-global-undo" title="Undo last tournament action" disabled>↩ Undo</button>
-      <div class="palette-picker" role="group" aria-label="Material You Color Palette" title="Material You Dynamic Palette">
-        <button class="palette-dot active" data-palette="indigo" style="--swatch:#7ca8ff" aria-label="Indigo palette" title="Indigo"></button>
-        <button class="palette-dot" data-palette="teal" style="--swatch:#56d6c3" aria-label="Teal palette" title="Teal"></button>
-        <button class="palette-dot" data-palette="terracotta" style="--swatch:#ff9e80" aria-label="Terracotta palette" title="Terracotta"></button>
-        <button class="palette-dot" data-palette="violet" style="--swatch:#c8a8ff" aria-label="Violet palette" title="Violet"></button>
-        <button class="palette-dot" data-palette="sage" style="--swatch:#9fd47a" aria-label="Sage palette" title="Sage"></button>
+      <div class="palette-picker" role="group" aria-label="Cosmic Steampunk Color Palette" title="Cosmic Steampunk Palette">
+        <button class="palette-dot active" data-palette="indigo" style="--swatch:#d9a54c" aria-label="Orbital Brass palette" title="Orbital Brass"></button>
+        <button class="palette-dot" data-palette="teal" style="--swatch:#4ef2d2" aria-label="Nebula Verdigris palette" title="Nebula Verdigris"></button>
+        <button class="palette-dot" data-palette="terracotta" style="--swatch:#ff8b5c" aria-label="Martian Foundry palette" title="Martian Foundry"></button>
+        <button class="palette-dot" data-palette="violet" style="--swatch:#c594ff" aria-label="Aether Void palette" title="Aether Void"></button>
+        <button class="palette-dot" data-palette="sage" style="--swatch:#88ea7a" aria-label="Clockwork Dynamo palette" title="Clockwork Dynamo"></button>
       </div>
-      <button class="btn btn-sm btn-icon" id="btn-theme" title="Toggle Dark/Light theme" aria-label="Toggle Dark or Light theme">☀️</button>
+      <button class="btn btn-sm btn-icon" id="btn-theme" title="Toggle Dark Hull / Blueprint Parchment theme" aria-label="Toggle Dark or Light theme">☀️</button>
       <button class="btn btn-sm btn-icon" id="btn-mute" title="Toggle Sound Effects" aria-label="Toggle Sound Effects">🔊</button>
+      <button class="btn btn-sm" id="btn-fx" aria-pressed="true" title="Toggle ambient animations (stars &amp; gears)">✨ FX</button>
       <button class="btn btn-sm" id="btn-export" title="Export tournament backup JSON">💾 Export</button>
       <button class="btn btn-sm" id="btn-import" title="Import tournament backup JSON">📂 Import</button>
       <input type="file" id="input-import-file" accept=".json,application/json" style="display:none">
@@ -59,21 +68,21 @@
 
   <div class="workspace">
     <aside class="sidebar" id="sidebar"></aside>
-    <main class="main-stage" id="main-stage"></main>
+    <main class="main-stage" id="main-stage" tabindex="-1"></main>
   </div>
 
   <!-- Dedicated simplified Touch-Screen Score Entry view -->
-  <section class="touch-shell hidden" id="touch-shell" aria-label="Touch Score Entry Mode"></section>
+  <section class="touch-shell hidden" id="touch-shell" aria-label="Touch Score Entry Mode" tabindex="-1"></section>
 
   <!-- Modal for editing completed matches or renaming bots -->
   <div class="modal-backdrop hidden" id="modal-backdrop">
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/bracket-engine.js?v=1.2"></script>
-  <script src="js/sound.js?v=1.2"></script>
-  <script src="js/sync.js?v=1.2"></script>
-  <script src="js/bracket-renderer.js?v=1.2"></script>
-  <script src="js/teacher.js?v=1.2"></script>
+  <script src="js/bracket-engine.js?v=2.0"></script>
+  <script src="js/sound.js?v=2.0"></script>
+  <script src="js/sync.js?v=2.0"></script>
+  <script src="js/bracket-renderer.js?v=2.0"></script>
+  <script src="js/teacher.js?v=2.0"></script>
 </body>
 </html>

@@ -7,6 +7,8 @@
   const Renderer = window.SumoBot.Renderer;
 
   let currentState = null;
+  let prevViewMode = null;
+  let prevScoreSnap = null;
 
   const els = {
     subtitle: document.getElementById('proj-subtitle'),
@@ -14,6 +16,11 @@
     stage: document.getElementById('proj-stage'),
     btnFullscreen: document.getElementById('btn-fullscreen')
   };
+
+  function isMotionReduced(state) {
+    return Boolean(state && state.fxPaused) ||
+      Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
 
   els.btnFullscreen.onclick = function () {
     if (!document.fullscreenElement) {
@@ -58,7 +65,7 @@
     els.onDeck.style.display = 'flex';
   }
 
-  function renderLiveBroadcast(state) {
+  function renderLiveBroadcast(state, popSide) {
     const ref = state.activeMatchRef;
     let m = ref ? Engine.getMatch(state, ref.period, ref.matchId) : null;
     let periodLabel = ref ? ref.period : state.activeTab;
@@ -99,25 +106,29 @@
     els.subtitle.textContent = `${titlePrefix} • LIVE MATCH`;
     renderOnDeckBar(state, periodLabel);
 
+    const fxOk = !isMotionReduced(state);
+    const popA = fxOk && popSide === 'a';
+    const popB = fxOk && popSide === 'b';
+
     els.stage.innerHTML = `
       <div class="broadcast-live">
         <div class="broadcast-eyebrow">${Renderer.escapeHtml(eyebrowText)}</div>
         <div class="broadcast-clock ${clockClass}" id="proj-clock">${rem <= 0 && state.timer.expired ? 'TIME!' : Sync.formatTimer(rem)}</div>
         <div class="broadcast-fighters">
-          <div class="broadcast-card side-a">
+          <div class="broadcast-card side-a ${popA ? 'card-impact' : ''}">
             <div class="broadcast-seed">${periodLabel === 'ASF' ? 'PERIOD 2 CHAMP' : (botA && botA.seed ? 'SEED #' + botA.seed : 'BOT A')}</div>
             <div class="broadcast-name">${Renderer.escapeHtml(botA ? botA.name : 'TBD')}</div>
-            <div class="broadcast-score">${m.scoreA}</div>
-            <div class="bout-pips">${Renderer.renderPips(m.scoreA, needed)}</div>
+            <div class="broadcast-score ${popA ? 'score-pop' : ''}">${m.scoreA}</div>
+            <div class="bout-pips">${Renderer.renderPips(m.scoreA, needed, popA)}</div>
           </div>
 
           <div class="broadcast-vs">VS</div>
 
-          <div class="broadcast-card side-b">
+          <div class="broadcast-card side-b ${popB ? 'card-impact' : ''}">
             <div class="broadcast-seed">${periodLabel === 'ASF' ? 'PERIOD 3 CHAMP' : (botB && botB.seed ? 'SEED #' + botB.seed : 'BOT B')}</div>
             <div class="broadcast-name">${Renderer.escapeHtml(botB ? botB.name : 'TBD')}</div>
-            <div class="broadcast-score">${m.scoreB}</div>
-            <div class="bout-pips">${Renderer.renderPips(m.scoreB, needed)}</div>
+            <div class="broadcast-score ${popB ? 'score-pop' : ''}">${m.scoreB}</div>
+            <div class="bout-pips">${Renderer.renderPips(m.scoreB, needed, popB)}</div>
           </div>
         </div>
       </div>
@@ -129,7 +140,7 @@
     els.subtitle.textContent = '🏆 CHAMPION CROWNED';
     els.onDeck.style.display = 'none';
 
-    const colors = ['#8ab4f8', '#ff9e80', '#ffd573', '#81c995', '#d0bcff'];
+    const colors = ['#f4ca73', '#4be1ff', '#ff7847', '#6bf0b8', '#c594ff'];
     let confetti = '';
     for (let i = 0; i < 36; i++) {
       const left = (i * 2.8) % 100;
@@ -142,6 +153,7 @@
     els.stage.innerHTML = `
       <div class="celebration-stage">
         ${confetti}
+        <div class="celebration-rings" aria-hidden="true"><span></span><span></span></div>
         <div class="celebration-trophy">🏆</div>
         <div class="celebration-title">${Renderer.escapeHtml(cel.title)}</div>
         <div class="celebration-winner">${Renderer.escapeHtml(cel.winnerName)}</div>
@@ -154,23 +166,64 @@
     currentState = state;
     document.body.classList.toggle('theme-light', state.theme === 'light');
     document.body.setAttribute('data-palette', state.palette || 'indigo');
+    document.body.classList.toggle('fx-paused', Boolean(state.fxPaused));
 
     const mode = resolveViewMode(state);
-    if (mode === 'celebration') {
-      renderCelebration(state);
-    } else if (mode === 'live') {
-      renderLiveBroadcast(state);
-    } else if (mode === 'finals') {
-      els.subtitle.textContent = 'ALL-SCHOOL CHAMPIONSHIP • BEST OF 5';
-      els.onDeck.style.display = 'none';
-      els.stage.innerHTML = Renderer.renderAllSchoolFinal(state, { interactive: false });
+    let popSide = null;
+    if (mode === 'live') {
+      const ref = state.activeMatchRef;
+      let m = ref ? Engine.getMatch(state, ref.period, ref.matchId) : null;
+      if (!m) {
+        const ready = Engine.getReadyMatches(state, state.activeTab);
+        if (ready.length > 0) m = ready[0];
+      }
+      if (m) {
+        const key = m.period + ':' + m.id;
+        if (prevScoreSnap && prevScoreSnap.key === key) {
+          if (m.scoreA > prevScoreSnap.scoreA) popSide = 'a';
+          else if (m.scoreB > prevScoreSnap.scoreB) popSide = 'b';
+        }
+        prevScoreSnap = { key: key, scoreA: m.scoreA, scoreB: m.scoreB };
+      } else {
+        prevScoreSnap = null;
+      }
     } else {
-      const periodId = state.activeTab === 'ASF' ? 'P2' : state.activeTab;
-      const period = state.periods[periodId];
-      els.subtitle.textContent = `${period.name.toUpperCase()} • DOUBLE ELIMINATION`;
-      renderOnDeckBar(state, periodId);
-      els.stage.innerHTML = Renderer.renderPeriodBracket(state, periodId, { interactive: false });
+      prevScoreSnap = null;
     }
+
+    function applyStageDom() {
+      if (mode === 'celebration') {
+        renderCelebration(state);
+      } else if (mode === 'live') {
+        renderLiveBroadcast(state, popSide);
+      } else if (mode === 'finals') {
+        els.subtitle.textContent = 'ALL-SCHOOL CHAMPIONSHIP • BEST OF 5';
+        els.onDeck.style.display = 'none';
+        els.stage.innerHTML = Renderer.renderAllSchoolFinal(state, { interactive: false });
+      } else {
+        const periodId = state.activeTab === 'ASF' ? 'P2' : state.activeTab;
+        const period = state.periods[periodId];
+        els.subtitle.textContent = `${period.name.toUpperCase()} • DOUBLE ELIMINATION`;
+        renderOnDeckBar(state, periodId);
+        els.stage.innerHTML = Renderer.renderPeriodBracket(state, periodId, { interactive: false });
+      }
+    }
+
+    const modeChanged = prevViewMode !== null && prevViewMode !== mode;
+    prevViewMode = mode;
+
+    if (modeChanged && document.startViewTransition && !isMotionReduced(state)) {
+      try {
+        const vt = document.startViewTransition(applyStageDom);
+        if (vt && vt.finished) {
+          vt.finished.finally(function () {
+            try { els.stage.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+          });
+        }
+        return;
+      } catch (e) { /* fall through */ }
+    }
+    applyStageDom();
   }
 
   // Smooth local countdown clock loop in Projector window

@@ -22,6 +22,7 @@
   let touchMode = new URLSearchParams(window.location.search).get('mode') === 'touch';
   let lastBoutTapAt = 0;
   let lastMatchNotice = null;
+  let lastScoreFx = null;
 
   const bridge = Sync.createTeacherBridge(function () { return state; });
 
@@ -37,10 +38,59 @@
     btnGlobalUndo: document.getElementById('btn-global-undo'),
     btnTheme: document.getElementById('btn-theme'),
     btnMute: document.getElementById('btn-mute'),
+    btnFx: document.getElementById('btn-fx'),
     btnExport: document.getElementById('btn-export'),
     btnImport: document.getElementById('btn-import'),
     inputImportFile: document.getElementById('input-import-file')
   };
+
+  function isMotionReduced() {
+    return Boolean(state.fxPaused) ||
+      Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  function runViewTransition(updateFn, focusEl) {
+    function routeFocus() {
+      if (focusEl && typeof focusEl.focus === 'function') {
+        try {
+          focusEl.focus({ preventScroll: true });
+        } catch (e) {
+          focusEl.focus();
+        }
+      }
+    }
+    if (!document.startViewTransition || isMotionReduced()) {
+      updateFn();
+      routeFocus();
+      return;
+    }
+    try {
+      const vt = document.startViewTransition(updateFn);
+      if (vt && vt.finished) {
+        vt.finished.finally(routeFocus);
+      }
+    } catch (e) {
+      updateFn();
+      routeFocus();
+    }
+  }
+
+  let supportsDisplayTransition;
+  function canTransitionDisplay() {
+    if (supportsDisplayTransition !== undefined) return supportsDisplayTransition;
+    if (!window.CSS || !CSS.supports || !CSS.supports('transition-behavior', 'allow-discrete') || !document.body) {
+      supportsDisplayTransition = false;
+      return false;
+    }
+    const probe = document.createElement('div');
+    probe.style.cssText = 'transition: display 1s allow-discrete !important; display: block;';
+    document.body.appendChild(probe);
+    getComputedStyle(probe).display;
+    probe.style.display = 'none';
+    supportsDisplayTransition = getComputedStyle(probe).display === 'block';
+    probe.remove();
+    return supportsDisplayTransition;
+  }
 
   function pushUndoSnapshot() {
     undoStack.push(Sync.cloneState(state));
@@ -51,12 +101,17 @@
     const palette = state.palette || 'indigo';
     document.body.classList.toggle('theme-light', state.theme === 'light');
     document.body.setAttribute('data-palette', palette);
+    document.body.classList.toggle('fx-paused', Boolean(state.fxPaused));
     document.querySelectorAll('.palette-dot').forEach(function (dot) {
       dot.classList.toggle('active', dot.getAttribute('data-palette') === palette);
     });
     els.btnTheme.textContent = state.theme === 'light' ? '🌙' : '☀️';
     Sound.setMuted(state.muted);
     els.btnMute.textContent = state.muted ? '🔇' : '🔊';
+    if (els.btnFx) {
+      els.btnFx.setAttribute('aria-pressed', state.fxPaused ? 'false' : 'true');
+      els.btnFx.classList.toggle('is-paused', Boolean(state.fxPaused));
+    }
   }
 
   function commit(soundEvent) {
@@ -182,6 +237,7 @@
     const res = Engine.recordBoutWin(state, ref.period, ref.matchId, side);
     // Pause & reset timer cleanly between rounds
     resetTimer(false);
+    lastScoreFx = { matchKey: ref.period + ':' + ref.matchId, side: side, at: Date.now() };
 
     if (res.matchJustFinished) {
       const winBot = Engine.getBotById(state, res.match.winner);
@@ -227,20 +283,53 @@
   }
 
   function setTouchMode(enabled) {
-    touchMode = Boolean(enabled);
-    document.body.classList.toggle('touch-mode-active', touchMode);
-    if (els.touchShell) els.touchShell.classList.toggle('hidden', !touchMode);
-    render();
+    const next = Boolean(enabled);
+    if (next === touchMode) return;
+    const focusTarget = next ? els.touchShell : els.mainStage;
+    runViewTransition(function () {
+      touchMode = next;
+      document.body.classList.toggle('touch-mode-active', touchMode);
+      if (els.touchShell) els.touchShell.classList.toggle('hidden', !touchMode);
+      render();
+    }, focusTarget);
   }
 
   function openModal(html) {
+    els.modalBackdrop.removeAttribute('data-closing');
     els.modalCard.innerHTML = html;
     els.modalBackdrop.classList.remove('hidden');
   }
 
-  function closeModal() {
-    els.modalBackdrop.classList.add('hidden');
-    els.modalCard.innerHTML = '';
+  async function closeModal() {
+    if (els.modalBackdrop.classList.contains('hidden')) return;
+    if (isMotionReduced()) {
+      els.modalBackdrop.removeAttribute('data-closing');
+      els.modalBackdrop.classList.add('hidden');
+      els.modalCard.innerHTML = '';
+      return;
+    }
+    els.modalBackdrop.setAttribute('data-closing', '');
+    if (canTransitionDisplay()) {
+      els.modalBackdrop.classList.add('hidden');
+    }
+    const anims = [];
+    if (typeof els.modalCard.getAnimations === 'function') {
+      anims.push.apply(anims, els.modalCard.getAnimations());
+    }
+    if (typeof els.modalBackdrop.getAnimations === 'function') {
+      anims.push.apply(anims, els.modalBackdrop.getAnimations());
+    }
+    if (anims.length > 0) {
+      await Promise.race([
+        Promise.allSettled(anims.map(function (a) { return a.finished; })),
+        new Promise(function (resolve) { setTimeout(resolve, 350); })
+      ]);
+    }
+    if (els.modalBackdrop.hasAttribute('data-closing')) {
+      els.modalBackdrop.removeAttribute('data-closing');
+      els.modalBackdrop.classList.add('hidden');
+      els.modalCard.innerHTML = '';
+    }
   }
 
   function openEditMatchModal(period, matchId) {
@@ -370,6 +459,16 @@
     els.btnGlobalUndo.disabled = undoStack.length === 0;
   }
 
+  function getActiveScoreFxSide(period, matchId) {
+    if (!lastScoreFx || isMotionReduced()) return null;
+    if (lastScoreFx.matchKey !== period + ':' + matchId) return null;
+    if (Date.now() - lastScoreFx.at > 650) {
+      lastScoreFx = null;
+      return null;
+    }
+    return lastScoreFx.side;
+  }
+
   function renderLiveMatchPanel() {
     const ref = state.activeMatchRef;
     if (!ref) return '';
@@ -380,6 +479,9 @@
     const needed = Engine.winsNeeded(m.bestOf);
     const rem = Sync.getRemainingMs(state.timer);
     const timerClass = rem <= 10000 ? 'danger' : (rem <= 30000 ? 'warn' : '');
+    const fxSide = getActiveScoreFxSide(ref.period, ref.matchId);
+    const popA = fxSide === 'a';
+    const popB = fxSide === 'b';
 
     return `
       <div class="panel-card live-panel">
@@ -402,25 +504,25 @@
           </div>
         </div>
 
-        <button class="bout-btn side-a" id="btn-win-a" ${m.status === 'completed' ? 'disabled' : ''}>
+        <button class="bout-btn side-a ${popA ? 'card-impact' : ''}" id="btn-win-a" ${m.status === 'completed' ? 'disabled' : ''}>
           <div>
             <div class="bout-bot-name">${Renderer.escapeHtml(botA ? botA.name : 'TBD')}</div>
             <div class="bout-bot-sub">Tap to award round win (first to ${needed})</div>
           </div>
           <div class="bout-score-box">
-            <div class="bout-score-num">${m.scoreA}</div>
-            <div class="bout-pips">${Renderer.renderPips(m.scoreA, needed)}</div>
+            <div class="bout-score-num ${popA ? 'score-pop' : ''}">${m.scoreA}</div>
+            <div class="bout-pips">${Renderer.renderPips(m.scoreA, needed, popA)}</div>
           </div>
         </button>
 
-        <button class="bout-btn side-b" id="btn-win-b" ${m.status === 'completed' ? 'disabled' : ''}>
+        <button class="bout-btn side-b ${popB ? 'card-impact' : ''}" id="btn-win-b" ${m.status === 'completed' ? 'disabled' : ''}>
           <div>
             <div class="bout-bot-name">${Renderer.escapeHtml(botB ? botB.name : 'TBD')}</div>
             <div class="bout-bot-sub">Tap to award round win (first to ${needed})</div>
           </div>
           <div class="bout-score-box">
-            <div class="bout-score-num">${m.scoreB}</div>
-            <div class="bout-pips">${Renderer.renderPips(m.scoreB, needed)}</div>
+            <div class="bout-score-num ${popB ? 'score-pop' : ''}">${m.scoreB}</div>
+            <div class="bout-pips">${Renderer.renderPips(m.scoreB, needed, popB)}</div>
           </div>
         </button>
 
@@ -687,6 +789,9 @@
     const seedB = ref.period === 'ASF' ? 'PERIOD 3 CHAMP' : (botB && botB.seed ? 'SEED #' + botB.seed : 'BOT B');
     const mpA = m.scoreA + 1 >= needed;
     const mpB = m.scoreB + 1 >= needed;
+    const fxSide = getActiveScoreFxSide(ref.period, ref.matchId);
+    const popA = fxSide === 'a';
+    const popB = fxSide === 'b';
 
     return `
       <div class="touch-match-pill">${Renderer.escapeHtml(ref.period === 'ASF' ? 'ALL-SCHOOL FINAL' : ref.period)} &bull; ${Renderer.escapeHtml(cleanLabel || m.label)} &bull; FIRST TO ${needed}</div>
@@ -703,19 +808,19 @@
       </div>
 
       <div class="touch-pads">
-        <button type="button" class="touch-pad side-a" id="touch-win-a" ${m.status === 'completed' ? 'disabled' : ''}>
+        <button type="button" class="touch-pad side-a ${popA ? 'card-impact' : ''}" id="touch-win-a" ${m.status === 'completed' ? 'disabled' : ''}>
           <span class="touch-pad-tag">${Renderer.escapeHtml(seedA)}</span>
           <span class="touch-bot-name">${Renderer.escapeHtml(botA ? botA.name : 'TBD')}</span>
-          <span class="touch-score">${m.scoreA}</span>
-          <span class="bout-pips">${Renderer.renderPips(m.scoreA, needed)}</span>
+          <span class="touch-score ${popA ? 'score-pop' : ''}">${m.scoreA}</span>
+          <span class="bout-pips">${Renderer.renderPips(m.scoreA, needed, popA)}</span>
           <span class="touch-cta-pill ${mpA ? 'is-match-point' : ''}">${mpA ? '🏆 TAP TO WIN MATCH' : '+1 ROUND WIN'}</span>
         </button>
 
-        <button type="button" class="touch-pad side-b" id="touch-win-b" ${m.status === 'completed' ? 'disabled' : ''}>
+        <button type="button" class="touch-pad side-b ${popB ? 'card-impact' : ''}" id="touch-win-b" ${m.status === 'completed' ? 'disabled' : ''}>
           <span class="touch-pad-tag">${Renderer.escapeHtml(seedB)}</span>
           <span class="touch-bot-name">${Renderer.escapeHtml(botB ? botB.name : 'TBD')}</span>
-          <span class="touch-score">${m.scoreB}</span>
-          <span class="bout-pips">${Renderer.renderPips(m.scoreB, needed)}</span>
+          <span class="touch-score ${popB ? 'score-pop' : ''}">${m.scoreB}</span>
+          <span class="bout-pips">${Renderer.renderPips(m.scoreB, needed, popB)}</span>
           <span class="touch-cta-pill ${mpB ? 'is-match-point' : ''}">${mpB ? '🏆 TAP TO WIN MATCH' : '+1 ROUND WIN'}</span>
         </button>
       </div>
@@ -767,6 +872,7 @@
         </nav>
         <div class="touch-topbar-right">
           ${activeMatch ? '<button class="btn touch-nav-btn" id="touch-show-queue">Matches</button>' : ''}
+          <button class="btn btn-sm ${state.fxPaused ? 'is-paused' : ''}" id="touch-fx" aria-pressed="${state.fxPaused ? 'false' : 'true'}" title="Toggle ambient animations (stars &amp; gears)">✨ FX</button>
           <button class="btn btn-icon touch-icon-btn" id="touch-mute" aria-label="Toggle sound effects" title="Toggle Sound Effects"><span aria-hidden="true">${state.muted ? '🔇' : '🔊'}</span></button>
           <button class="btn btn-icon touch-icon-btn" id="touch-theme" aria-label="Toggle dark or light theme" title="Toggle Dark/Light theme"><span aria-hidden="true">${state.theme === 'light' ? '🌙' : '☀️'}</span></button>
         </div>
@@ -793,24 +899,34 @@
     els.touchShell.querySelectorAll('[data-touch-tab]').forEach(function (btn) {
       btn.onclick = function () {
         const nextTab = btn.getAttribute('data-touch-tab');
-        if (state.activeMatchRef && state.activeMatchRef.period !== nextTab) {
-          state.activeMatchRef = null;
-          resetTimer(false);
-        }
-        if (state.activeTab !== nextTab && state.lastCelebration && state.lastCelebration.scope !== nextTab) {
-          state.lastCelebration = null;
-        }
-        state.activeTab = nextTab;
-        lastMatchNotice = null;
-        commit(null);
+        runViewTransition(function () {
+          if (state.activeMatchRef && state.activeMatchRef.period !== nextTab) {
+            state.activeMatchRef = null;
+            resetTimer(false);
+          }
+          if (state.activeTab !== nextTab && state.lastCelebration && state.lastCelebration.scope !== nextTab) {
+            state.lastCelebration = null;
+          }
+          state.activeTab = nextTab;
+          lastMatchNotice = null;
+          commit(null);
+        }, els.touchShell);
       };
     });
 
     const showQueue = document.getElementById('touch-show-queue');
-    if (showQueue) showQueue.onclick = closeLiveMatch;
+    if (showQueue) showQueue.onclick = function () { runViewTransition(closeLiveMatch, els.touchShell); };
 
     const closeLive = document.getElementById('touch-close-live');
-    if (closeLive) closeLive.onclick = closeLiveMatch;
+    if (closeLive) closeLive.onclick = function () { runViewTransition(closeLiveMatch, els.touchShell); };
+
+    const fxBtn = document.getElementById('touch-fx');
+    if (fxBtn) {
+      fxBtn.onclick = function () {
+        state.fxPaused = !state.fxPaused;
+        commit(null);
+      };
+    }
 
     const muteBtn = document.getElementById('touch-mute');
     if (muteBtn) {
@@ -882,8 +998,10 @@
     const launchAsf = document.getElementById('touch-launch-asf');
     if (launchAsf) {
       launchAsf.onclick = function () {
-        state.activeTab = 'ASF';
-        startMatch('ASF', 'ASF-1');
+        runViewTransition(function () {
+          state.activeTab = 'ASF';
+          startMatch('ASF', 'ASF-1');
+        }, els.touchShell);
       };
     }
 
@@ -906,7 +1024,9 @@
 
     els.touchShell.querySelectorAll('[data-touch-match-id]').forEach(function (btn) {
       btn.onclick = function () {
-        startMatch(btn.getAttribute('data-touch-period'), btn.getAttribute('data-touch-match-id'));
+        const p = btn.getAttribute('data-touch-period');
+        const id = btn.getAttribute('data-touch-match-id');
+        runViewTransition(function () { startMatch(p, id); }, els.touchShell);
       };
     });
   }
@@ -933,6 +1053,7 @@
     if (touchMode) {
       renderTouchShell();
     }
+    lastScoreFx = null;
   }
 
   function wireDynamicEvents() {
@@ -1155,14 +1276,17 @@
   }
 
   // Static topbar events
-  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(function (btn) {
     btn.onclick = function () {
       const nextTab = btn.getAttribute('data-tab');
-      if (state.activeTab !== nextTab && state.lastCelebration && state.lastCelebration.scope !== nextTab) {
-        state.lastCelebration = null;
-      }
-      state.activeTab = nextTab;
-      commit(null);
+      if (!nextTab || state.activeTab === nextTab) return;
+      runViewTransition(function () {
+        if (state.lastCelebration && state.lastCelebration.scope !== nextTab) {
+          state.lastCelebration = null;
+        }
+        state.activeTab = nextTab;
+        commit(null);
+      }, els.mainStage);
     };
   });
 
@@ -1205,6 +1329,40 @@
     state.muted = !state.muted;
     commit(null);
   };
+
+  if (els.btnFx) {
+    els.btnFx.onclick = function () {
+      state.fxPaused = !state.fxPaused;
+      commit(null);
+    };
+  }
+
+  // Delegated tactile ripple shockwave on pointer press
+  document.addEventListener('pointerdown', function (ev) {
+    if (isMotionReduced()) return;
+    const target = ev.target && ev.target.closest
+      ? ev.target.closest('.btn, .bout-btn, .touch-pad, .tab-btn, .override-btn, .queue-item, .touch-queue-card, .match-card.is-clickable')
+      : null;
+    if (!target || target.disabled) return;
+    const rect = target.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const size = Math.max(rect.width, rect.height) * 1.15;
+    const x = ev.clientX ? (ev.clientX - rect.left) : rect.width / 2;
+    const y = ev.clientY ? (ev.clientY - rect.top) : rect.height / 2;
+    const ripple = document.createElement('span');
+    ripple.className = 'fx-ripple';
+    ripple.setAttribute('aria-hidden', 'true');
+    ripple.style.width = size + 'px';
+    ripple.style.height = size + 'px';
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    target.appendChild(ripple);
+    const removeRipple = function () {
+      if (ripple.parentNode) ripple.parentNode.removeChild(ripple);
+    };
+    ripple.addEventListener('animationend', removeRipple, { once: true });
+    setTimeout(removeRipple, 650);
+  });
 
   els.btnExport.onclick = function () {
     Sync.exportJsonFile(state);

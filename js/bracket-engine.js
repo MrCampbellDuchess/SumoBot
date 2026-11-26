@@ -552,6 +552,7 @@
       theme: 'dark',   // 'dark' | 'light'
       palette: 'indigo', // 'indigo' | 'teal' | 'terracotta' | 'violet' | 'sage'
       muted: false,
+      fxPaused: false,
       projectorOverride: 'auto', // 'auto' | 'bracket' | 'live' | 'finals'
       activeMatchRef: null, // { period: 'P2'|'P3'|'ASF', matchId: string }
       timer: {
