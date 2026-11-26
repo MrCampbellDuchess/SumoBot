@@ -8,6 +8,7 @@ Designed with a **Material You (Material Design 3)** interface featuring 5 live-
 - **True Double Elimination with Bracket Reset:** Independent double-elimination brackets for **Period 2 (P2)** and **Period 3 (P3)** supporting any roster size ≥ 2 with automatic top-seed Round 1 byes and anti-rematch Losers drop-downs.
 - **Best-of-3 & Best-of-5 Formats:** Best-of-3 across all Winners and Losers rounds; **Best-of-5** for Grand Finals, automatic **Bracket Reset** (when the Losers champion wins Grand Finals #1), and the **All-School Final** (P2 Champion vs. P3 Champion).
 - **Teacher Control Panel (`index.html`):** Individual & bulk-paste roster entry, 10-bot sample loader, random seed shuffle, drag-and-drop / arrow seed reordering, mid-tournament bot renaming, live match bout scoring, **2:00 round countdown timer** with 5-second warning pips and buzzer, per-bout + 40-step global Undo, and downstream-aware editing of completed matches.
+- **Touch-Screen Score Entry (`👆 Touch Mode` / `?mode=touch`):** One-tap full-screen touch scoring view designed for tablets, touch monitors, and phones — featuring oversized tap-to-score bot pads, match-point cues, large Start/Pause/Reset timer controls, big ready-match picker cards, 1-tap Undo, and accidental double-tap protection while staying synced with the Projector display.
 - **Synced Projector Display (`projector.html`):** Read-only spectator display synced via `window.open` + `postMessage` + `BroadcastChannel` + `localStorage`. Smart auto-switches between the Bracket + "Up Next" bar, Live Match Broadcast Scoreboard + giant timer, All-School Final, and Champion Celebration with confetti (plus manual `Auto`, `Bracket`, `Live`, and `Finals` overrides).
 - **Material You Dynamic Themes & Audio:** Switch live between 5 dynamic tonal palettes (`Indigo`, `Teal`, `Terracotta`, `Violet`, `Sage`) and Dark/Light modes, plus synthesized Web Audio API sound effects (with Mute toggle) and `localStorage` auto-save + JSON Export/Import backups.
 
@@ -16,10 +17,10 @@ Designed with a **Material You (Material Design 3)** interface featuring 5 live-
 - **Offline / Local:** Double-click `index.html` directly (or serve locally with `python -m http.server`).
 1. Click **📺 Projector** in the top bar to open `projector.html`, drag it onto your classroom projector or second monitor, and press **F11** (or click **⛶ Fullscreen**).
 2. Add bots in the Roster panel, adjust seeds, and click **🚀 Generate Bracket**.
-3. Click any ready match in the queue or bracket tree to run the 2:00 timer and score bouts.
+3. Click any ready match in the queue or bracket tree to run the 2:00 timer and score bouts — or tap **👆 Touch Mode** (or open `?mode=touch`) for simplified touch-screen scoring.
 
 ## Testing
-- **Browser Test Runner:** Open `tests/test-runner.html` in Chrome or Edge to run the full assertion suite (`1581 assertions` covering bracket sizes 2–20 with and without Bracket Reset, All-School Final, undo, downstream reset, rendering, timer formatting, and audio).
+- **Browser Test Runner:** Open `tests/test-runner.html` in Chrome or Edge to run the full assertion suite (`1582 assertions` covering bracket sizes 2–20 with and without Bracket Reset, All-School Final, undo, downstream reset, rendering, timer formatting, and audio).
 - **Node.js CLI Suite:**
   ```sh
   node tests/bracket-engine.test.mjs

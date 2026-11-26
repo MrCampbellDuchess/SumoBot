@@ -19,15 +19,20 @@
   const MAX_UNDO = 40;
   let lastCountdownSec = null;
   let dragIndex = null;
+  let touchMode = new URLSearchParams(window.location.search).get('mode') === 'touch';
+  let lastBoutTapAt = 0;
+  let lastMatchNotice = null;
 
   const bridge = Sync.createTeacherBridge(function () { return state; });
 
   const els = {
     sidebar: document.getElementById('sidebar'),
     mainStage: document.getElementById('main-stage'),
+    touchShell: document.getElementById('touch-shell'),
     modalBackdrop: document.getElementById('modal-backdrop'),
     modalCard: document.getElementById('modal-card'),
     btnLaunchProjector: document.getElementById('btn-launch-projector'),
+    btnTouchMode: document.getElementById('btn-touch-mode'),
     projStatusDot: document.getElementById('proj-status-dot'),
     btnGlobalUndo: document.getElementById('btn-global-undo'),
     btnTheme: document.getElementById('btn-theme'),
@@ -107,6 +112,14 @@
       boxEl.classList.toggle('danger', rem <= 10000);
     }
 
+    const touchDigitsEl = document.getElementById('touch-timer-digits');
+    const touchBoxEl = document.getElementById('touch-timer-box');
+    if (touchDigitsEl) touchDigitsEl.textContent = rem <= 0 ? 'TIME!' : Sync.formatTimer(rem);
+    if (touchBoxEl) {
+      touchBoxEl.classList.toggle('warn', rem > 10000 && rem <= 30000);
+      touchBoxEl.classList.toggle('danger', rem <= 10000);
+    }
+
     if (sec !== lastCountdownSec) {
       lastCountdownSec = sec;
       if (sec <= 5 && sec >= 1) {
@@ -151,6 +164,7 @@
 
     state.activeMatchRef = { period: period, matchId: matchId };
     state.lastCelebration = null;
+    lastMatchNotice = null;
     if (!isSame) resetTimer(false);
     commit(null);
   }
@@ -168,6 +182,17 @@
     const res = Engine.recordBoutWin(state, ref.period, ref.matchId, side);
     // Pause & reset timer cleanly between rounds
     resetTimer(false);
+
+    if (res.matchJustFinished) {
+      const winBot = Engine.getBotById(state, res.match.winner);
+      lastMatchNotice = {
+        label: res.match.label,
+        winnerName: winBot ? winBot.name : 'Winner',
+        scoreText: `${res.match.scoreA}–${res.match.scoreB}`
+      };
+    } else {
+      lastMatchNotice = null;
+    }
 
     if (res.tournamentJustFinished) {
       state.activeMatchRef = null;
@@ -193,11 +218,19 @@
   function performGlobalUndo() {
     if (undoStack.length === 0) return;
     state = undoStack.pop();
+    lastMatchNotice = null;
     if (state.timer) {
       state.timer.running = false;
       state.timer.startedAt = null;
     }
     commit(null);
+  }
+
+  function setTouchMode(enabled) {
+    touchMode = Boolean(enabled);
+    document.body.classList.toggle('touch-mode-active', touchMode);
+    if (els.touchShell) els.touchShell.classList.toggle('hidden', !touchMode);
+    render();
   }
 
   function openModal(html) {
@@ -524,6 +557,360 @@
     `;
   }
 
+  function renderTouchMatchPicker() {
+    const tab = state.activeTab;
+    let html = '';
+
+    if (lastMatchNotice) {
+      html += `
+        <div class="touch-result-banner" role="status">
+          <div class="touch-banner-text">✅ <strong>${Renderer.escapeHtml(lastMatchNotice.winnerName)}</strong> won ${Renderer.escapeHtml(lastMatchNotice.label)} (${Renderer.escapeHtml(lastMatchNotice.scoreText)})</div>
+          <div class="touch-banner-actions">
+            <button class="btn btn-secondary" id="touch-undo-global" ${undoStack.length === 0 ? 'disabled' : ''}>↩ Undo Result</button>
+            <button class="btn btn-icon" id="touch-dismiss-notice" aria-label="Dismiss result notice">✕</button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (state.lastCelebration) {
+      html += `
+        <div class="touch-celebration-banner" role="status">
+          <div class="touch-banner-text">🏆 <strong>${Renderer.escapeHtml(state.lastCelebration.title)}</strong>: ${Renderer.escapeHtml(state.lastCelebration.winnerName)}</div>
+          <div class="touch-banner-actions">
+            ${state.allSchoolFinal.status === 'ready' ? '<button class="btn btn-gold" id="touch-launch-asf">🏆 Launch All-School Final</button>' : ''}
+            <button class="btn" id="touch-dismiss-celebration">Dismiss Celebration</button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (tab !== 'ASF' && !state.periods[tab].bracket) {
+      return html + `
+        <div class="touch-empty-card">
+          <h3>${Renderer.escapeHtml(state.periods[tab].name)} Bracket Not Started</h3>
+          <p>Add bots and generate the bracket in the Roster view before scoring matches.</p>
+          <button class="btn btn-primary btn-lg" id="touch-open-roster">← Open Roster Setup</button>
+        </div>
+      `;
+    }
+
+    const ready = Engine.getReadyMatches(state, tab);
+    if (ready.length > 0) {
+      const cards = ready.map(function (m) {
+        const botA = Engine.getBotById(state, m.slotA);
+        const botB = Engine.getBotById(state, m.slotB);
+        const isLive = m.status === 'in_progress';
+        const statusBadge = isLive
+          ? `<span class="match-badge badge-progress">IN PROGRESS ${m.scoreA}–${m.scoreB}</span>`
+          : '<span class="match-badge badge-ready">READY</span>';
+        return `
+          <button class="touch-queue-card" data-touch-period="${Renderer.escapeHtml(m.period)}" data-touch-match-id="${Renderer.escapeHtml(m.id)}">
+            <div class="touch-queue-meta">
+              <span class="touch-queue-label">${Renderer.escapeHtml(m.label)}</span>
+              <span class="match-badges">
+                <span class="match-bo">Bo${m.bestOf}</span>
+                ${statusBadge}
+              </span>
+            </div>
+            <div class="touch-queue-matchup">
+              <span>${Renderer.escapeHtml(botA ? botA.name : 'TBD')}</span>
+              <span class="queue-vs">vs</span>
+              <span>${Renderer.escapeHtml(botB ? botB.name : 'TBD')}</span>
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      return html + `
+        <div class="touch-picker-header">
+          <h2>Ready Matches (${ready.length})</h2>
+          <span>Tap any match to start scoring</span>
+        </div>
+        <div class="touch-queue-grid">${cards}</div>
+      `;
+    }
+
+    if (tab === 'ASF') {
+      const asf = state.allSchoolFinal;
+      const champ = Engine.getBotById(state, asf.winner);
+      if (asf.status === 'completed' && champ) {
+        return html + `
+          <div class="touch-empty-card">
+            <h3>🏆 All-School Champion: ${Renderer.escapeHtml(champ.name)}</h3>
+            <p>Both periods and the All-School Championship are complete.</p>
+            <button class="btn btn-secondary btn-lg" id="touch-exit-empty">← Back to Bracket</button>
+          </div>
+        `;
+      }
+      const p2Ready = Engine.getReadyMatches(state, 'P2').length;
+      const p3Ready = Engine.getReadyMatches(state, 'P3').length;
+      return html + `
+        <div class="touch-empty-card">
+          <h3>Waiting for Period Champions</h3>
+          <p>Finish both Period 2 and Period 3 brackets to unlock the All-School Final.</p>
+          <div class="touch-banner-actions">
+            ${p2Ready > 0 ? '<button class="btn btn-primary" id="touch-jump-p2">Go to Period 2</button>' : ''}
+            ${p3Ready > 0 ? '<button class="btn btn-primary" id="touch-jump-p3">Go to Period 3</button>' : ''}
+            <button class="btn btn-secondary" id="touch-exit-empty">← Back to Bracket</button>
+          </div>
+        </div>
+      `;
+    }
+
+    const bracket = state.periods[tab].bracket;
+    const champBot = bracket ? Engine.getBotById(state, bracket.championId) : null;
+    const otherPeriod = tab === 'P2' ? 'P3' : 'P2';
+    const otherReady = Engine.getReadyMatches(state, otherPeriod).length;
+    const asfReady = state.allSchoolFinal.status === 'ready' || state.allSchoolFinal.status === 'in_progress';
+    return html + `
+      <div class="touch-empty-card">
+        <h3>${champBot ? `🏆 ${Renderer.escapeHtml(tab)} Champion: ${Renderer.escapeHtml(champBot.name)}` : 'No Ready Matches'}</h3>
+        <p>${champBot ? `${Renderer.escapeHtml(state.periods[tab].name)} is complete.` : 'No playable matches right now.'}</p>
+        <div class="touch-banner-actions">
+          ${otherReady > 0 ? `<button class="btn btn-primary" id="touch-jump-other" data-target-tab="${otherPeriod}">Go to ${otherPeriod} (${otherReady} ready)</button>` : ''}
+          ${asfReady ? '<button class="btn btn-gold" id="touch-jump-asf">🏆 Go to All-School Final</button>' : ''}
+          <button class="btn btn-secondary" id="touch-exit-empty">← Back to Bracket</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderTouchLiveMatch(m, ref) {
+    const botA = Engine.getBotById(state, m.slotA);
+    const botB = Engine.getBotById(state, m.slotB);
+    const needed = Engine.winsNeeded(m.bestOf);
+    const rem = Sync.getRemainingMs(state.timer);
+    const timerClass = rem <= 10000 ? 'danger' : (rem <= 30000 ? 'warn' : '');
+    const cleanLabel = String(m.label || '').replace(/\s*\(Bo\d+\)/i, '').trim();
+    const seedA = ref.period === 'ASF' ? 'PERIOD 2 CHAMP' : (botA && botA.seed ? 'SEED #' + botA.seed : 'BOT A');
+    const seedB = ref.period === 'ASF' ? 'PERIOD 3 CHAMP' : (botB && botB.seed ? 'SEED #' + botB.seed : 'BOT B');
+    const mpA = m.scoreA + 1 >= needed;
+    const mpB = m.scoreB + 1 >= needed;
+
+    return `
+      <div class="touch-match-pill">${Renderer.escapeHtml(ref.period === 'ASF' ? 'ALL-SCHOOL FINAL' : ref.period)} &bull; ${Renderer.escapeHtml(cleanLabel || m.label)} &bull; FIRST TO ${needed}</div>
+
+      <div class="touch-timer-bar ${timerClass}" id="touch-timer-box">
+        <button type="button" class="touch-timer-readout" id="touch-timer-readout" aria-label="Toggle round timer">
+          <span class="touch-timer-label">ROUND TIMER</span>
+          <span class="touch-timer-digits" id="touch-timer-digits">${rem <= 0 && state.timer.expired ? 'TIME!' : Sync.formatTimer(rem)}</span>
+        </button>
+        <div class="touch-timer-actions">
+          <button class="btn btn-primary touch-timer-btn" id="touch-timer-toggle">${state.timer.running ? '⏸ Pause' : '▶ Start'}</button>
+          <button class="btn touch-timer-btn" id="touch-timer-reset">↺ 2:00</button>
+        </div>
+      </div>
+
+      <div class="touch-pads">
+        <button type="button" class="touch-pad side-a" id="touch-win-a" ${m.status === 'completed' ? 'disabled' : ''}>
+          <span class="touch-pad-tag">${Renderer.escapeHtml(seedA)}</span>
+          <span class="touch-bot-name">${Renderer.escapeHtml(botA ? botA.name : 'TBD')}</span>
+          <span class="touch-score">${m.scoreA}</span>
+          <span class="bout-pips">${Renderer.renderPips(m.scoreA, needed)}</span>
+          <span class="touch-cta-pill ${mpA ? 'is-match-point' : ''}">${mpA ? '🏆 TAP TO WIN MATCH' : '+1 ROUND WIN'}</span>
+        </button>
+
+        <button type="button" class="touch-pad side-b" id="touch-win-b" ${m.status === 'completed' ? 'disabled' : ''}>
+          <span class="touch-pad-tag">${Renderer.escapeHtml(seedB)}</span>
+          <span class="touch-bot-name">${Renderer.escapeHtml(botB ? botB.name : 'TBD')}</span>
+          <span class="touch-score">${m.scoreB}</span>
+          <span class="bout-pips">${Renderer.renderPips(m.scoreB, needed)}</span>
+          <span class="touch-cta-pill ${mpB ? 'is-match-point' : ''}">${mpB ? '🏆 TAP TO WIN MATCH' : '+1 ROUND WIN'}</span>
+        </button>
+      </div>
+    `;
+  }
+
+  function renderTouchBottomBar(m) {
+    const botA = Engine.getBotById(state, m.slotA);
+    const botB = Engine.getBotById(state, m.slotB);
+    const historyHtml = m.bouts.length > 0
+      ? m.bouts.map(function (side, idx) {
+          const b = side === 'a' ? botA : botB;
+          return `<span class="touch-bout-chip">R${idx + 1}: ${Renderer.escapeHtml(b ? b.name : side.toUpperCase())}</span>`;
+        }).join('')
+      : '<span class="touch-hint">Tap the winning bot\'s card after each round</span>';
+
+    return `
+      <div class="touch-bottom-bar">
+        <button class="btn btn-secondary" id="touch-undo-bout" ${m.bouts.length === 0 ? 'disabled' : ''}>↩ Undo Bout</button>
+        <div class="touch-bout-history">${historyHtml}</div>
+        <button class="btn" id="touch-close-live">✕ Back to Matches</button>
+      </div>
+    `;
+  }
+
+  function renderTouchShell() {
+    if (!els.touchShell) return;
+    const ref = state.activeMatchRef;
+    const activeMatch = ref ? Engine.getMatch(state, ref.period, ref.matchId) : null;
+    const activeTab = activeMatch ? ref.period : state.activeTab;
+
+    const tabsHtml = [
+      { id: 'P2', label: 'P2' },
+      { id: 'P3', label: 'P3' },
+      { id: 'ASF', label: 'Finals' }
+    ].map(function (t) {
+      const count = Engine.getReadyMatches(state, t.id).length;
+      const pill = count > 0
+        ? `<span class="tab-pill">${t.id === 'ASF' ? 'READY' : count}</span>`
+        : '';
+      return `<button class="tab-btn ${activeTab === t.id ? 'active' : ''} ${t.id === 'ASF' ? 'tab-asf' : ''}" data-touch-tab="${t.id}">${t.label} ${pill}</button>`;
+    }).join('');
+
+    els.touchShell.innerHTML = `
+      <header class="touch-topbar">
+        <button class="btn btn-secondary touch-nav-btn" id="touch-exit">← Bracket</button>
+        <nav class="period-tabs touch-period-tabs" aria-label="Touch Mode Period Switcher">
+          ${tabsHtml}
+        </nav>
+        <div class="touch-topbar-right">
+          ${activeMatch ? '<button class="btn touch-nav-btn" id="touch-show-queue">Matches</button>' : ''}
+          <button class="btn btn-icon touch-icon-btn" id="touch-mute" aria-label="Toggle sound effects" title="Toggle Sound Effects"><span aria-hidden="true">${state.muted ? '🔇' : '🔊'}</span></button>
+          <button class="btn btn-icon touch-icon-btn" id="touch-theme" aria-label="Toggle dark or light theme" title="Toggle Dark/Light theme"><span aria-hidden="true">${state.theme === 'light' ? '🌙' : '☀️'}</span></button>
+        </div>
+      </header>
+      <div class="touch-stage">
+        ${activeMatch ? renderTouchLiveMatch(activeMatch, ref) : renderTouchMatchPicker()}
+      </div>
+      ${activeMatch ? renderTouchBottomBar(activeMatch) : ''}
+    `;
+
+    wireTouchEvents();
+  }
+
+  function wireTouchEvents() {
+    const exitBtn = document.getElementById('touch-exit');
+    if (exitBtn) exitBtn.onclick = function () { setTouchMode(false); };
+
+    const exitEmpty = document.getElementById('touch-exit-empty');
+    if (exitEmpty) exitEmpty.onclick = function () { setTouchMode(false); };
+
+    const openRoster = document.getElementById('touch-open-roster');
+    if (openRoster) openRoster.onclick = function () { setTouchMode(false); };
+
+    els.touchShell.querySelectorAll('[data-touch-tab]').forEach(function (btn) {
+      btn.onclick = function () {
+        const nextTab = btn.getAttribute('data-touch-tab');
+        if (state.activeMatchRef && state.activeMatchRef.period !== nextTab) {
+          state.activeMatchRef = null;
+          resetTimer(false);
+        }
+        if (state.activeTab !== nextTab && state.lastCelebration && state.lastCelebration.scope !== nextTab) {
+          state.lastCelebration = null;
+        }
+        state.activeTab = nextTab;
+        lastMatchNotice = null;
+        commit(null);
+      };
+    });
+
+    const showQueue = document.getElementById('touch-show-queue');
+    if (showQueue) showQueue.onclick = closeLiveMatch;
+
+    const closeLive = document.getElementById('touch-close-live');
+    if (closeLive) closeLive.onclick = closeLiveMatch;
+
+    const muteBtn = document.getElementById('touch-mute');
+    if (muteBtn) {
+      muteBtn.onclick = function () {
+        state.muted = !state.muted;
+        commit(null);
+      };
+    }
+
+    const themeBtn = document.getElementById('touch-theme');
+    if (themeBtn) {
+      themeBtn.onclick = function () {
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        commit(null);
+      };
+    }
+
+    const timerToggle = document.getElementById('touch-timer-toggle');
+    if (timerToggle) timerToggle.onclick = toggleTimer;
+
+    const timerReadout = document.getElementById('touch-timer-readout');
+    if (timerReadout) timerReadout.onclick = toggleTimer;
+
+    const timerReset = document.getElementById('touch-timer-reset');
+    if (timerReset) timerReset.onclick = function () { resetTimer(true); };
+
+    const winA = document.getElementById('touch-win-a');
+    if (winA) {
+      winA.onclick = function () {
+        const now = Date.now();
+        if (now - lastBoutTapAt < 350) return;
+        lastBoutTapAt = now;
+        scoreBout('a');
+      };
+    }
+
+    const winB = document.getElementById('touch-win-b');
+    if (winB) {
+      winB.onclick = function () {
+        const now = Date.now();
+        if (now - lastBoutTapAt < 350) return;
+        lastBoutTapAt = now;
+        scoreBout('b');
+      };
+    }
+
+    const undoBout = document.getElementById('touch-undo-bout');
+    if (undoBout) undoBout.onclick = undoLiveMatchBout;
+
+    const undoGlobal = document.getElementById('touch-undo-global');
+    if (undoGlobal) undoGlobal.onclick = performGlobalUndo;
+
+    const dismissNotice = document.getElementById('touch-dismiss-notice');
+    if (dismissNotice) {
+      dismissNotice.onclick = function () {
+        lastMatchNotice = null;
+        render();
+      };
+    }
+
+    const dismissCel = document.getElementById('touch-dismiss-celebration');
+    if (dismissCel) {
+      dismissCel.onclick = function () {
+        state.lastCelebration = null;
+        commit(null);
+      };
+    }
+
+    const launchAsf = document.getElementById('touch-launch-asf');
+    if (launchAsf) {
+      launchAsf.onclick = function () {
+        state.activeTab = 'ASF';
+        startMatch('ASF', 'ASF-1');
+      };
+    }
+
+    const jumpP2 = document.getElementById('touch-jump-p2');
+    if (jumpP2) jumpP2.onclick = function () { state.activeTab = 'P2'; commit(null); };
+
+    const jumpP3 = document.getElementById('touch-jump-p3');
+    if (jumpP3) jumpP3.onclick = function () { state.activeTab = 'P3'; commit(null); };
+
+    const jumpAsf = document.getElementById('touch-jump-asf');
+    if (jumpAsf) jumpAsf.onclick = function () { state.activeTab = 'ASF'; commit(null); };
+
+    const jumpOther = document.getElementById('touch-jump-other');
+    if (jumpOther) {
+      jumpOther.onclick = function () {
+        state.activeTab = jumpOther.getAttribute('data-target-tab') || 'P2';
+        commit(null);
+      };
+    }
+
+    els.touchShell.querySelectorAll('[data-touch-match-id]').forEach(function (btn) {
+      btn.onclick = function () {
+        startMatch(btn.getAttribute('data-touch-period'), btn.getAttribute('data-touch-match-id'));
+      };
+    });
+  }
+
   function render() {
     renderTabs();
 
@@ -540,6 +927,12 @@
     }
 
     wireDynamicEvents();
+
+    document.body.classList.toggle('touch-mode-active', touchMode);
+    if (els.touchShell) els.touchShell.classList.toggle('hidden', !touchMode);
+    if (touchMode) {
+      renderTouchShell();
+    }
   }
 
   function wireDynamicEvents() {
@@ -783,6 +1176,12 @@
   els.btnLaunchProjector.onclick = function () {
     bridge.launchProjector();
   };
+
+  if (els.btnTouchMode) {
+    els.btnTouchMode.onclick = function () {
+      setTouchMode(true);
+    };
+  }
 
   bridge.onStatusChange(function (connected) {
     els.projStatusDot.classList.toggle('connected', connected);

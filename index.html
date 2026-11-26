@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SumoBot Tournament — Teacher Control Panel</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
-  <link rel="stylesheet" href="css/styles.css?v=1.1">
+  <link rel="stylesheet" href="css/styles.css?v=1.2">
 </head>
 <body class="teacher-app">
   <header class="topbar">
@@ -38,6 +38,9 @@
         <button class="override-btn" data-override="finals" title="Force All-School Final View on Projector">Finals</button>
       </div>
 
+      <button class="btn btn-secondary btn-sm" id="btn-touch-mode" title="Open simplified Touch-Screen Score Entry view">
+        <span aria-hidden="true">👆</span> Touch Mode
+      </button>
       <button class="btn btn-sm" id="btn-global-undo" title="Undo last tournament action" disabled>↩ Undo</button>
       <div class="palette-picker" role="group" aria-label="Material You Color Palette" title="Material You Dynamic Palette">
         <button class="palette-dot active" data-palette="indigo" style="--swatch:#7ca8ff" aria-label="Indigo palette" title="Indigo"></button>
@@ -46,8 +49,8 @@
         <button class="palette-dot" data-palette="violet" style="--swatch:#c8a8ff" aria-label="Violet palette" title="Violet"></button>
         <button class="palette-dot" data-palette="sage" style="--swatch:#9fd47a" aria-label="Sage palette" title="Sage"></button>
       </div>
-      <button class="btn btn-sm btn-icon" id="btn-theme" title="Toggle Dark/Light theme">☀️</button>
-      <button class="btn btn-sm btn-icon" id="btn-mute" title="Toggle Sound Effects">🔊</button>
+      <button class="btn btn-sm btn-icon" id="btn-theme" title="Toggle Dark/Light theme" aria-label="Toggle Dark or Light theme">☀️</button>
+      <button class="btn btn-sm btn-icon" id="btn-mute" title="Toggle Sound Effects" aria-label="Toggle Sound Effects">🔊</button>
       <button class="btn btn-sm" id="btn-export" title="Export tournament backup JSON">💾 Export</button>
       <button class="btn btn-sm" id="btn-import" title="Import tournament backup JSON">📂 Import</button>
       <input type="file" id="input-import-file" accept=".json,application/json" style="display:none">
@@ -59,15 +62,18 @@
     <main class="main-stage" id="main-stage"></main>
   </div>
 
+  <!-- Dedicated simplified Touch-Screen Score Entry view -->
+  <section class="touch-shell hidden" id="touch-shell" aria-label="Touch Score Entry Mode"></section>
+
   <!-- Modal for editing completed matches or renaming bots -->
   <div class="modal-backdrop hidden" id="modal-backdrop">
     <div class="modal-card" id="modal-card"></div>
   </div>
 
-  <script src="js/bracket-engine.js?v=1.1"></script>
-  <script src="js/sound.js?v=1.1"></script>
-  <script src="js/sync.js?v=1.1"></script>
-  <script src="js/bracket-renderer.js?v=1.1"></script>
-  <script src="js/teacher.js?v=1.1"></script>
+  <script src="js/bracket-engine.js?v=1.2"></script>
+  <script src="js/sound.js?v=1.2"></script>
+  <script src="js/sync.js?v=1.2"></script>
+  <script src="js/bracket-renderer.js?v=1.2"></script>
+  <script src="js/teacher.js?v=1.2"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@
 
 :root {
   color-scheme: dark;
+  --target-size: 24px;
 
   /* Typography & Shape Scale */
   --font-sans: "Google Sans", "Product Sans", "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
@@ -1754,4 +1755,525 @@ body.projector-body {
     border-bottom: 1px solid var(--md-outline-variant);
     max-height: 45vh;
   }
+}
+
+
+/* ==================== TOUCH SCORE ENTRY MODE ==================== */
+@media (pointer: coarse) {
+  :root {
+    --target-size: 44px;
+  }
+}
+
+body.touch-mode-active {
+  overflow: hidden;
+}
+
+.touch-shell {
+  container: touch-shell / inline-size;
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  z-index: 500;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+
+.touch-shell.hidden {
+  display: none;
+}
+
+.touch-shell :where(button, [role="button"]) {
+  min-block-size: max(48px, var(--target-size));
+  min-inline-size: max(48px, var(--target-size));
+  touch-action: manipulation;
+}
+
+.touch-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--md-surface-container-low);
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.touch-period-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.touch-period-tabs .tab-btn {
+  min-block-size: 48px;
+  padding: 8px 16px;
+  font-size: 0.92rem;
+}
+
+.touch-topbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.touch-nav-btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+}
+
+.touch-icon-btn {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  font-size: 1.15rem;
+}
+
+.touch-stage {
+  container: touch-stage / inline-size;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-padding-top: 16px;
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.touch-stage::-webkit-scrollbar {
+  width: 8px;
+}
+
+.touch-stage::-webkit-scrollbar-thumb {
+  background: var(--md-outline-variant);
+  border-radius: var(--md-shape-full);
+}
+
+.touch-match-pill {
+  align-self: center;
+  max-inline-size: 100%;
+  text-align: center;
+  padding: 7px 18px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-gold-container);
+  color: var(--md-on-gold-container);
+  font-weight: 800;
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow-wrap: break-word;
+}
+
+.touch-timer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 28px;
+  background: var(--md-surface-container);
+  border: 2px solid var(--md-outline-variant);
+  box-shadow: var(--md-shadow-1);
+  transition: border-color 0.2s var(--md-ease), background-color 0.2s var(--md-ease);
+}
+
+.touch-timer-bar.warn {
+  border-color: var(--md-gold);
+  background: color-mix(in srgb, var(--md-gold-container) 45%, var(--md-surface-container));
+}
+
+.touch-timer-bar.danger {
+  border-color: var(--md-error);
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+  animation: pulseClock 0.7s infinite alternate;
+}
+
+.touch-timer-readout {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--md-shape-md);
+}
+
+.touch-timer-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  color: inherit;
+  opacity: 0.78;
+}
+
+.touch-timer-digits {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2.4rem, 1.6rem + 3.8vw, 4.8rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.03em;
+}
+
+.touch-timer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.touch-timer-btn {
+  min-block-size: 56px;
+  padding: 10px 22px;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.touch-pads {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.touch-pad {
+  min-block-size: 160px;
+  min-inline-size: 0;
+  border-radius: 28px;
+  padding: 16px 18px;
+  border: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: var(--md-shadow-2);
+  transition: transform 0.1s var(--md-ease), filter 0.16s var(--md-ease);
+}
+
+@container touch-stage (inline-size > 44rem) {
+  .touch-pads {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+  }
+  .touch-pad {
+    min-block-size: 200px;
+    border-radius: 32px;
+    padding: 22px 20px;
+    gap: 10px;
+  }
+}
+
+.touch-pad.side-a {
+  background: linear-gradient(165deg, var(--md-primary-container) 0%, var(--md-surface-container-high) 100%);
+  border-color: color-mix(in srgb, var(--md-primary) 55%, transparent);
+  color: var(--md-on-surface);
+}
+
+.touch-pad.side-b {
+  background: linear-gradient(165deg, var(--md-tertiary-container) 0%, var(--md-surface-container-high) 100%);
+  border-color: color-mix(in srgb, var(--md-tertiary) 55%, transparent);
+  color: var(--md-on-surface);
+}
+
+.touch-pad:active:not(:disabled) {
+  transform: scale(0.975);
+  filter: brightness(1.08);
+}
+
+.touch-pad:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.touch-pad-tag {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 4px 14px;
+  border-radius: var(--md-shape-full);
+  background: color-mix(in srgb, var(--md-on-surface) 10%, transparent);
+  color: var(--md-on-surface-variant);
+}
+
+.touch-bot-name {
+  font-size: clamp(1.6rem, 1.1rem + 2.4vw, 3.2rem);
+  font-weight: 900;
+  line-height: 1.12;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  max-inline-size: 100%;
+}
+
+.touch-score {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(3rem, 2rem + 4.5vw, 6rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.touch-pad .pip {
+  width: 22px;
+  height: 22px;
+  border-width: 3px;
+}
+
+.touch-cta-pill {
+  margin-top: 4px;
+  padding: 8px 18px;
+  border-radius: var(--md-shape-full);
+  background: color-mix(in srgb, var(--md-on-surface) 12%, transparent);
+  color: var(--md-on-surface);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-size: 0.86rem;
+}
+
+.touch-cta-pill.is-match-point {
+  background: var(--md-gold-container);
+  color: var(--md-on-gold-container);
+}
+
+.touch-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: var(--md-surface-container-low);
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.touch-bottom-bar .btn {
+  min-block-size: 52px;
+  padding: 10px 20px;
+  font-size: 0.94rem;
+}
+
+.touch-bout-history {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 220px;
+  min-inline-size: 0;
+}
+
+.touch-bout-chip {
+  padding: 5px 12px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-surface-container-high);
+  border: 1px solid var(--md-outline-variant);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.touch-hint {
+  font-size: 0.86rem;
+  color: var(--md-on-surface-variant);
+  text-align: center;
+}
+
+@container touch-shell (inline-size <= 38rem) {
+  .touch-timer-bar {
+    padding: 10px 14px;
+    gap: 8px;
+    border-radius: 22px;
+  }
+  .touch-timer-actions {
+    margin-left: 0;
+  }
+  .touch-timer-btn {
+    min-block-size: 48px;
+    padding: 8px 16px;
+    font-size: 0.92rem;
+  }
+  .touch-bottom-bar {
+    padding: 10px max(12px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    gap: 8px;
+  }
+  .touch-bout-history {
+    order: -1;
+    flex: 1 0 100%;
+  }
+  .touch-bottom-bar .btn {
+    flex: 1 1 0;
+    min-block-size: 48px;
+    padding: 10px 12px;
+    font-size: 0.88rem;
+  }
+}
+
+/* Touch Match Picker */
+.touch-picker-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.touch-picker-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 900;
+  text-wrap: balance;
+}
+
+.touch-picker-header span {
+  font-size: 0.9rem;
+  color: var(--md-on-surface-variant);
+}
+
+.touch-queue-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@container touch-stage (inline-size > 40rem) {
+  .touch-queue-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.touch-queue-card {
+  min-block-size: 98px;
+  min-inline-size: 0;
+  border-radius: 24px;
+  padding: 18px 20px;
+  background: var(--md-surface-container);
+  border: 1px solid var(--md-outline-variant);
+  color: var(--md-on-surface);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--md-shadow-1);
+  transition: transform 0.12s var(--md-ease), border-color 0.16s var(--md-ease), background-color 0.16s var(--md-ease);
+}
+
+.touch-queue-card:hover {
+  border-color: var(--md-primary);
+  background: var(--md-surface-container-high);
+}
+
+.touch-queue-card:active {
+  transform: scale(0.985);
+}
+
+.touch-queue-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.touch-queue-label {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--md-on-surface-variant);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.touch-queue-matchup {
+  font-size: clamp(1rem, 0.85rem + 0.7vw, 1.35rem);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow-wrap: break-word;
+}
+
+.touch-result-banner,
+.touch-celebration-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 22px;
+  box-shadow: var(--md-shadow-1);
+}
+
+.touch-result-banner {
+  background: var(--md-win-container);
+  color: var(--md-on-win-container);
+}
+
+.touch-celebration-banner {
+  background: var(--md-gold-container);
+  color: var(--md-on-gold-container);
+}
+
+.touch-banner-text {
+  font-size: 1rem;
+  font-weight: 600;
+  flex: 1 1 240px;
+  min-inline-size: 0;
+}
+
+.touch-banner-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.touch-empty-card {
+  max-width: 560px;
+  width: 100%;
+  margin: auto;
+  padding: 36px 28px;
+  border-radius: 28px;
+  background: var(--md-surface-container);
+  border: 1px solid var(--md-outline-variant);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--md-shadow-1);
+}
+
+.touch-empty-card h3 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 900;
+  text-wrap: balance;
+}
+
+.touch-empty-card p {
+  margin: 0;
+  color: var(--md-on-surface-variant);
+  text-wrap: pretty;
 }
